@@ -1,21 +1,25 @@
-# Se√ß√µes, buscas e navega√ß√£o na wikimedia
+O relatÛrio para esta atividade poder· ser encontrado no link abaixo:
 
-Este repo √© a semente para uma an√°lise de padr√µes de busca e navega√ß√£o em p√°ginas de projetos da wikimedia (provavelmente wikipedia).
+http://rpubs.com/WagnerSantos/wikimediafondation
 
-O [exerc√≠cio original de an√°lise](https://github.com/wikimedia-research/Discovery-Hiring-Analyst-2016) √© um problema proposto pela Wikimedia "for candidates applying to be a Data Analyst in the Discovery department at Wikimedia Foundation." O README do projeto original descreve as an√°lises pedidas aos interessados na posi√ß√£o.
+## Sessıes, buscas e navegaÁ„o na wikimedia
 
-## Organiza√ß√£o
+Este repo È a semente para uma an·lise de padrıes de busca e navegaÁ„o em p·ginas de projetos da wikimedia (provavelmente wikipedia).
 
-`code`: c√≥digo para importar + transformar dados para an√°lise, c√≥digo de fun√ß√µes √∫teis em mais de um ponto.
+O exercÌcio original de an·lise È um problema proposto pela Wikimedia "for candidates applying to be a Data Analyst in the Discovery department at Wikimedia Foundation." O README do projeto original descreve as an·lises pedidas aos interessados na posiÁ„o.
 
-`data`: dados criados para essa an√°lise.
+## OrganizaÁ„o
 
-`reports`: notebooks das an√°lises.
+code: cÛdigo para importar + transformar dados para an·lise, cÛdigo de funÁıes ˙teis em mais de um ponto.
 
-## O que j√° temos
+data: dados criados para essa an·lise.
 
-Como as an√°lises propostas na tarefa original s√£o em sua maioria sobre resultados de buscas e a navega√ß√£o que acontece depois delas, j√° h√° c√≥digo para ler os dados originais e criar algumas m√©tricas sobre buscas nas sess√µes de usu√°rio e sobre a navega√ßao depois de cada busca em `code/import-events_to_searches.R`. Executar `Rscript code/import-events_to_searches.R` gera o arquivo `data/search_data.csv`. O script `import-events_to_searches.R` em si √© a melhor documenta√ß√£o do que significa cada coluna em `data/search_data.csv`.
+reports: notebooks das an·lises.
 
-## Depend√™ncias
+## O que j· temos
 
-R, com os pacotes `tidyverse`, `lubridate` e `here`.
+Como as an·lises propostas na tarefa original s„o em sua maioria sobre resultados de buscas e a navegaÁ„o que acontece depois delas, j· h· cÛdigo para ler os dados originais e criar algumas mÈtricas sobre buscas nas sessıes de usu·rio e sobre a navegaÁao depois de cada busca em code/import-events_to_searches.R. Executar Rscript code/import-events_to_searches.R gera o arquivo data/search_data.csv. O script import-events_to_searches.R em si È a melhor documentaÁ„o do que significa cada coluna em data/search_data.csv.
+
+## DependÍncias
+
+R, com os pacotes tidyverse, lubridate e here.
