@@ -1,0 +1,158 @@
+---
+title: "Wagner_Lab3_CP1"
+author: "Wagner Santos"
+date: "21 de maio de 2018"
+output: html_document
+---
+
+##### Universidade Federal de Campina Grande
+##### Fundamentos de Pesquisa em Ciência da Computação II
+##### Prof. Nazareno Andrade
+##### Problema 3 - Checkpoint 1: Inferência via ICs
+
+```{r setup, echo=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+library(here)
+library(boot)
+library(lubridate)
+library(dplyr)
+library(readr)
+library(ggplot2)
+
+buscas <- read_csv(here::here("data/search_data.csv"))
+buscas <- buscas %>% 
+    filter(!(num_clicks > results & results == 0))
+    ```
+
+
+### Introdução
+
+Problema de exploração de dados que a Wikimedia Foundation usou em 2016 para recrutar pessoas para trabalhar no departamento de descoberta deles.
+
+De fato, os dados de acesso a projetos da wikimedia que utilizamos no problema 2 são dados de uma amostra dos usuários, e não da população.
+
+Sabendo disso, será produzido uma versão resumida do relatório que foi feito para o Lab 2, CP 4, que:
+
+    1. responde as 3 primeiras perguntas da tarefa original utilizando inferência estatística realizada através de intervalos de confiança e bootstrap.
+      1. Qual é nossa taxa de click geral diária? Como ela varia entre os grupos?
+      2. Qual resultados as pessoas tendem a tentar primeiro? Como ela muda dia a dia?
+      3. Qual é nossa taxa de resultados zerados diária? Como ela varia entre os grupos?
+
+    2. testar o que acontece se para a pergunta 1, em vez de comparar o grupo A com o grupo B (um teste A/B), você compara metade das sessões do grupo A (escolhida aleatoriamente) com outra metade das sessões do mesmo grupo (um teste A/A).
+
+
+### Definições
+
+Nesta atividade o principal interesse está em medir a proporção de sessões de busca onde o usuário clica em um dos resultados apresentadoos, sendo representado através do "clickthrough rate", como também na proporção de buscas que não tiveram resultados, sendo representada por "zero results rate"
+
+Usaremos "bootstrap" e IC para inferir sobre a amostra utilizada pela Wikimedia, com base em um nível de confiança de 95%.
+
+
+### Qual é nossa taxa de click geral diária? Como ela varia entre os grupos?
+
+As taxas do grupo A foram maiores em relação ao grupo B.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+sessoes <- buscas %>%
+    group_by(session_id) %>% 
+    summarise(grupo = first(group),
+              com_clique = sum(num_clicks, na.rm = TRUE) > 0,
+              data = paste(day(first(session_start_date)), month(first(session_start_date)), year(first(session_start_date)), sep = "/"))
+    
+taxa_de_cliques <- function(value, i){
+    return(sum(value[i])/length(value))
+}
+
+cliques_por_dia <- sessoes %>% 
+    group_by(data) %>% 
+    summarise(boot = list(boot(com_clique, taxa_de_cliques, R = 1000)),
+              ci = list(boot.ci(boot[[1]], conf = 0.95, type = "basic")),
+              lim_inf = ci[[1]][[4]][4],
+              lim_sup = ci[[1]][[4]][5]) %>% 
+    select(-c(boot, ci))
+
+cliques_por_dia %>% 
+    ggplot(aes(x = data, ymin = lim_inf, ymax = lim_sup)) + 
+    geom_errorbar(width = .2) +
+    labs(x = "Taxa", y = "dia")
+```
+
+Com 95% de confiança, a "clickthrough rate" esteja no intervalo [0,36, 0,40] por dia.
+
+Como varia entre os grupos:
+
+```{r}
+cliques_por_dia_grupos <- sessoes %>% 
+    group_by(data, grupo) %>% 
+    summarise(boot = list(boot(com_clique, taxa_de_cliques, R = 1000)),
+              ci = list(boot.ci(boot[[1]], conf = 0.95, type = "basic")),
+              lim_inf = ci[[1]][[4]][4],
+              lim_sup = ci[[1]][[4]][5]) %>% 
+    select(-c(boot, ci))
+
+cliques_por_dia_grupos %>% 
+    ggplot(aes(x = data, ymin = lim_inf, ymax = lim_sup, color = grupo)) + 
+    geom_errorbar(width = .2) +
+    labs(x = "Data", y = "proporção de click por dia")
+```
+
+
+### Quais resultados os usuários tendem a tentar primeiro? Como isso muda no dia-a-dia?
+
+```{r}
+total_click_occurrency <- buscas %>%
+    na.omit(col = 'first_click') %>%
+    group_by(first_click) %>%
+    count(first_click)
+head(total_click_occurrency,10)
+```
+
+```{r}
+tail(total_click_occurrency,10)
+```
+
+
+```{r}
+first_click_occurrency <- buscas %>%
+    na.omit(col = 'first_click') %>%
+    filter(first_click <= 25) %>%
+    group_by(first_click) %>%
+    count(first_click)
+ggplot(first_click_occurrency, aes(x=first_click, y=n)) + geom_bar(stat = 'identity')
+```
+
+
+
+### Qual é a taxa de resultados zero geral diária? Como ela varia entre os grupos A e B? Existe diferença significativa da taxa de resultados iguais a zero entre os grupos A e B?
+
+```{r}
+amostra3 = sample_n(buscas, 1000)
+
+fun.boot <- function(dado, indices) {
+  taxa_zero <- dado %>%
+    slice(indices) %>%
+    group_by(group, results) %>%
+    summarise(n = n()) %>% 
+    mutate(taxa_zero = n / sum(n) * 100)  %>%
+    ungroup()
+  
+  taxa_a <- taxa_zero %>% 
+    filter(results == 0, group == "a") %>%
+    pull(taxa_zero)
+  
+  taxa_b <- taxa_zero %>% 
+    filter(results == 0, group == "b") %>%
+    pull(taxa_zero)
+  
+  return(taxa_a - taxa_b)
+}
+
+res.boot <- boot(data = amostra3, 
+                 statistic = fun.boot, 
+                 R = 5000)
+
+boot.ci(boot.out = res.boot, conf = 0.95, type = "basic")
+```
