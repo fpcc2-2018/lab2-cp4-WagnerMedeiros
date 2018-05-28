@@ -1,0 +1,158 @@
+---
+title: "Laboratório 3 - Checkpoint 4: Teste de Hipóteses"
+author: "Wagner Santos"
+date: "23 de maio de 2018"
+output: html_document
+---
+
+##### Universidade Federal de Campina Grande
+##### Fundamentos de Pesquisa em Ciência da Computação II
+##### Prof. Nazareno Andrade
+
+<style>
+    body {text-align: justify;
+    font-family: "Times New Roman";
+</style>
+
+
+
+### Bibliotecas Utilizadas
+
+```{r message = FALSE, warning = FALSE}
+library(tidyverse)
+library(here)
+library(lubridate)
+library(summarytools)
+library(boot)
+library(resample) 
+library(GGally) 
+library(plot3D)
+theme_set(theme_bw())
+```
+
+
+### Inferência Estatística baseada em Teste de Hipóteses aplicada às Sessões, Buscas e Navegação na Wikimedia
+
+Para este checkpoint, revisite em um novo relatório duas das perguntas que você respondeu utilizando ICs no CP 1, e as responda utilizando um teste de hipótese com permutação. Seu relatório deve: 
+
+    1. Descrever seu teste: o que está sendo comparado? Qual a permutação sendo feita?
+
+    2. Relatar seu resultado: a diferença é significativa? Qual o p-valor? Reporte segundo as boas práticas dos materiais aqui do canvas.
+
+    3. Comentar sobre as vantagens e desvantagens que você vê no resultado ao qual chegou agora e utilizando ICs para as mesmas perguntas.
+
+
+### Importação dos Dados
+
+```{r message = FALSE, warning = FALSE}
+buscas_original = read_csv(here::here("data/search_data.csv"))
+glimpse(buscas_original) 
+```
+
+A partir da tabela, nota-se que há 136.234 observações.
+
+
+### Teste de Hipóteses
+
+#### A taxa diária de *clickthrough* varia entre os grupos A e B?
+
+* H0: A categoria do grupo não influencia a taxa diária de *clickthrough*
+* H1: A categoria do grupo influencia a taxa diária de *clickthrough*
+
+Nível de confiança: 0,95 quando ela é verdadeira.
+Nível de significância: 0,05 quando ela for verdadeira.
+
+#### Distribuição de taxas de *clickthrough* por data de ocorrência e grupo.
+
+```{r message = FALSE, warning = FALSE}
+buscas1 = buscas_original %>% 
+  filter(results > 0) 
+glimpse(buscas1) 
+sessions_by_date_and_group = buscas1 %>%
+  group_by(date = date(session_start_date), group) %>%       
+  summarize(total_sessions_by_date = n(),       
+            total_sessions_with_clicks_by_date = sum(num_clicks > 0), 
+            rate = (total_sessions_with_clicks_by_date/total_sessions_by_date) * 100)   
+names(sessions_by_date_and_group)[1]<-"date" 
+glimpse(sessions_by_date_and_group) 
+group_names <- c('a' = "Grupo A", 'b' = "Grupo B")
+sessions_by_date_and_group %>% 
+    ggplot(aes(y = rate, x = date)) +
+    ggtitle("Taxa de clickthroug x Data de ocorrência x Grupo") +
+    geom_line(stat = "identity", fill = "white", color = "blue") + 
+    geom_text(aes(label = paste(round(rate, digits = 2), "%")), angle = 45, position = position_stack(vjust = .7), size = 2.7) +
+    ylab("Taxa de clickthrough") + 
+    xlab("Data de ocorrência") +
+    theme(text = element_text(family = "Arial", size = 10), plot.title = element_text(size = 10), axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 10)) +
+    facet_grid(.~group, labeller = as_labeller(group_names))
+mean_group_function <- function(data, g){  
+  group_g = filter(data, group == eval(parse(text = "g")))  
+  mean_rate_of_sessions_with = mean(group_g$rate)
+}
+print(mean_group_function(sessions_by_date_and_group, "a"))
+print(mean_group_function(sessions_by_date_and_group, "b"))
+
+```
+
+
+##### p-valor é 0,0002, estatisticamente significativo, pois está dentro do limite fixado, então a hipótese nula é rejeitada.
+
+```{r message = FALSE, warning = FALSE}
+rates_by_group = sessions_by_date_and_group %>%
+  select(group, rate) 
+glimpse(rates_by_group) 
+permutationTest2(rates_by_group, mean(rate), treatment = group)
+
+```
+
+
+#### A taxa diária de zero resultados varia entre os grupos A e B?
+
+
+##### Estabelencendo as hipóteses nula e alternativa
+
+* H0: A categoria do grupo não influencia a taxa diária de zero resultados
+* H1: A categoria do grupo influencia a taxa diária de zero resultados
+
+Nível de significância: 0,05
+
+```{r message = FALSE, warning = FALSE}
+buscas2 = buscas_original %>%
+  filter(!is.na(results)) 
+glimpse(buscas2) 
+sessions_by_date_and_group = buscas2 %>%
+  group_by(date = date(session_start_date), group) %>%       
+  summarize(total_sessions_by_date = n(),       
+            total_sessions_with_zero_results_by_date = sum(results == 0), 
+            rate = (total_sessions_with_zero_results_by_date/total_sessions_by_date) * 100)   
+names(sessions_by_date_and_group)[1] <-"date" 
+glimpse(sessions_by_date_and_group) 
+group_names <- c('a' = "Grupo A", 'b' = "Grupo B")
+sessions_by_date_and_group %>% 
+    ggplot(aes(y = rate, x = date)) +
+    ggtitle("Figura 2 - Taxa de zero resultados x Data de ocorrência x Grupo") +
+    geom_line(stat = "identity", fill = "white", color = "blue") + 
+    geom_text(aes(label = paste(round(rate, digits = 2), "%")), angle = 45, position = position_stack(vjust = .7), size = 2.7) +
+    ylab("Taxa de zero resultados") + 
+    xlab("Data de ocorrência") +
+    theme(text = element_text(family = "Arial", size = 10), plot.title = element_text(size = 10), axis.title.x = element_text(size = 10), axis.title.y = element_text(size = 10)) +
+    facet_grid(.~group, labeller = as_labeller(group_names))
+print(mean_group_function(sessions_by_date_and_group, "a"))
+print(mean_group_function(sessions_by_date_and_group, "b"))
+
+```
+
+
+##### p-valor é 0,2
+
+```{r message = FALSE, warning = FALSE}
+rates_by_group = sessions_by_date_and_group %>%
+  select(group, rate) 
+glimpse(rates_by_group) 
+permutationTest2(rates_by_group, mean(rate), treatment = group)
+
+```
+
+O p-valor calculado é aproximadamente 0,2, maior que o nível de significância, estatisticamente não é significativo e a hipótese nula não é rejeitada.
+
+
