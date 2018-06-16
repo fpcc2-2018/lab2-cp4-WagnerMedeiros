@@ -1,0 +1,184 @@
+---
+title: "Regressão linear na prática"
+author: "Wagner Santos"
+date: "16 de junho de 2018"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r warning=FALSE, echo=FALSE}
+library(tidyverse)
+library(broom)
+library(modelr)
+source(here::here("code/lib.R"))
+theme_set(theme_report())
+
+knitr::opts_chunk$set(tidy = FALSE,
+                      fig.width = 6,
+                      fig.height = 5)
+
+paleta = c("#404E4D",
+           "#92DCE5",
+           "#938BA1",
+           "#2D3142",
+           "#F4743B")
+```
+
+## Dados da CAPES sobre avaliação da pós-graduação
+
+A CAPES é um órgão do MEC que tem a atribuição de acompanhar a pós-graduação na universidade brasileira. Uma das formas que ela encontrou de fazer isso e pela qual ela é bastante criticada é através de uma avaliação quantitativa a cada x anos (era 3, mudou para 4). 
+
+Usaremos dados da penúltima avaliação da CAPES: 
+
+```{r}
+cacc = read_projectdata()
+
+glimpse(cacc)
+```
+
+### Produção e produtividade de artigos
+
+Uma das maneiras de avaliar a produção dos docentes que a CAPES utiliza é quantificando a produção de artigos pelos docentes. Os artigos são categorizados em extratos ordenados (A1 é o mais alto), e separados entre artigos em conferências e periódicos. Usaremos para esse lab a produção em periódicos avaliados com A1, A2 e B1. 
+
+```{r}
+cacc = cacc %>% 
+  mutate(producao = (periodicos_A1 + periodicos_A2 + periodicos_B1), 
+         produtividade = producao / `Docentes permanentes`, 
+         mestrados = Dissertacoes, 
+         doutorados = Teses,
+         mestrados_pprof = mestrados / `Docentes permanentes`, 
+         doutorados_pprof = doutorados / `Docentes permanentes`)
+```
+
+
+### EDA
+
+```{r}
+cacc %>% 
+  ggplot(aes(x = `Docentes permanentes`)) + 
+  geom_histogram(bins = 15, fill = paleta[1])
+
+cacc %>% 
+  ggplot(aes(x = producao)) + 
+  geom_histogram(bins = 15, fill = paleta[2])
+
+cacc %>% 
+  ggplot(aes(x = produtividade)) + 
+  geom_histogram(bins = 15, fill = paleta[3])
+```
+
+Se quisermos modelar o efeito do tamanho do programa em termos de docentes (permanentes) na quantidade de artigos publicados, podemos usar regressão. 
+
+*Importante*: sempre queremos ver os dados antes de fazermos qualquer modelo ou sumário: 
+
+```{r}
+cacc %>% 
+  ggplot(aes(x = `Docentes permanentes`, y = producao)) + 
+  geom_point()
+```
+
+Parece que existe uma relação. Vamos criar um modelo então:
+
+```{r}
+modelo1 = lm(producao ~ `Docentes permanentes`, data = cacc)
+
+tidy(modelo1, conf.int = TRUE, conf.level = 0.95)
+glance(modelo1)
+```
+
+Para visualizar o modelo:
+
+```{r}
+cacc_augmented = cacc %>% 
+  add_predictions(modelo1) 
+
+cacc_augmented %>% 
+  ggplot(aes(x = `Docentes permanentes`)) + 
+  geom_line(aes(y = pred), colour = "brown") + 
+  geom_point(aes(y = producao)) + 
+  labs(y = "Produção do programa")
+```
+
+Se considerarmos que temos apenas uma amostra de todos os programas de pós em CC no Brasil, o que podemos inferir a partir desse modelo sobre a relação entre número de docentes permanentes e produção de artigos em programas de pós? 
+
+Normalmente reportaríamos o resultado da seguinte maneira, substituindo VarIndepX e todos os x's e y's pelos nomes e valores de fato:
+
+> Regressão múltipla foi utilizada para analisar se VarIndep1 e VarIndep2 tem uma associação significativa com VarDep. Os resultados da regressão indicam que um modelo com os 2 preditores no formato VarDep = XXX.VarIndep1 + YYY.VarIndep2 explicam XX,XX% da variância da variável de resposta (R2 = XX,XX). VarIndep1, medida como/em [unidade ou o que é o 0 e o que é 1] tem uma relação significativa com o erro (b = [yy,yy; zz,zz], IC com 95%), assim como VarIndep2 medida como [unidade ou o que é o 0 e o que é 1] (b = [yy,yy; zz,zz], IC com 95%). O aumento de 1 unidade de VarIndep1 produz uma mudança de xxx em VarDep, enquanto um aumento...
+
+Portanto a regressão linear fui usada para realizar a análise da correlação entre a produção acadêmica e a quantidade de docentes permanentes em instituições com programas de pós-graduação em CC. Há uma relação de causa e efeito entre a produção acadêmica e a quantidade de docentes permanentes, onde a produção do programa em função da quantidade de docentes permanentes da instituição pode ter 81,46% (R2 = 0.8145886) da sua variância explicada pelo modelo ŷ =  α + βx, onde α = -41.27309,  β = 4.81337 e x = quantidade de docentes permanentes, com o erro b = [-54,29; -28,25] e intervalo de confiança de 95%. O aumento de uma unidade representa um acréscimo na produção do programa em 4,81%. 
+
+Dito isso, o que significa a relação que você encontrou na prática para entendermos os programas de pós graduação no Brasil? E algum palpite de por que a relação que encontramos é forte?
+
+O crescimento da quantidade de docentes permanentes ocorre junto com o crescimento da produção de um programa a uma taxa de +4,81 unidades de produção para cada docente a mais no programa, mas não havendo relação de causalidade entre elas e sim alguma espécie de relacionamento.
+
+## Mais fatores
+
+E se considerarmos também o número de alunos?
+
+```{r}
+modelo2 = lm(producao ~ `Docentes permanentes` + mestrados + doutorados, data = cacc)
+
+tidy(modelo2, conf.int = TRUE, conf.level = 0.95)
+glance(modelo2)
+```
+
+Visualizar o modelo com muitas variáveis independentes fica mais difícil
+
+```{r}
+para_plotar_modelo = cacc %>% 
+  data_grid(producao = seq_range(producao, 10), # Crie um vetor de 10 valores no range
+            `Docentes permanentes` = seq_range(`Docentes permanentes`, 4),  
+            # mestrados = seq_range(mestrados, 3),
+            mestrados = median(mestrados),
+            doutorados = seq_range(doutorados, 3)) %>% 
+  add_predictions(modelo2)
+
+glimpse(para_plotar_modelo)
+
+```
+
+```{r}
+para_plotar_modelo %>% 
+  ggplot(aes(x = `Docentes permanentes`, y = pred)) + 
+  geom_line(aes(group = doutorados, colour = doutorados)) + 
+  # facet_grid(. ~ as.factor(mestrados)) + 
+  geom_point(data = cacc, aes(y = producao, colour = doutorados))
+```
+
+Considerando agora esses três fatores, o que podemos dizer sobre como cada um deles se relaciona com a produção de um programa de pós em CC? E sobre o modelo? Ele explica mais que o modelo 1? 
+
+Relação:
+Mestrados e doutorados pode ter 87,07% (R2 = 0.8706642) da sua variância explicada pelo modelo ŵ =  α + β1x + β2y + β3z, onde α = -14.3663077, β1 = 3.4997112, β2 = -0.1949515, β3 = 1.0007711, x = docentes permanentes, y = mestrados e z = doutorados, com o erro b = [-29,23; 0,50] e intervalo de confiança de 95%.
+
+Modelo:
+Aumento da quantidade de docentes é um fator relevante na produção. 
+Doutorados aumentam ocrescimento da produção.
+
+Ao acrescentar mais variáveis este modelo explica melhor o modelo 1, representando um aumento de 5,61%. 
+
+
+## Agora produtividade 
+
+Diferente de medirmos produção (total produzido), é medirmos produtividade (produzido / utilizado). Abaixo focaremos nessa análise. Para isso crie um modelo que investiga como um conjunto de fatores que você julga que são relevantes se relacionam com a produtividade dos programas. Crie um modelo que avalie como _pelo menos 3 fatores_ se relacionam com a produtividade de um programa. Pode reutilizar fatores que já definimos e analizamos para produção. Mas cuidado para não incluir fatores que sejam função linear de outros já incluídos (ex: incluir A, B e um tercero C=A+B)
+
+Produza abaixo o modelo e um texto que comente (i) o modelo, tal como os que fizemos antes, e (ii) as implicações - o que aprendemos sobre como funcionam programas de pós no brasil?.
+
+
+Acrescentado mais variáveis, como a quantidade de artigos e orientandos por professor:
+
+```{r}
+modelo3 = lm(produtividade ~ `Tem doutorado` + `Artigos em conf` + doutorados_pprof, data = cacc)
+
+tidy(modelo3, conf.int = TRUE, conf.level = 0.95)
+glance(modelo3)
+```
+
+
+Resultados:
+
+Com um intervalo de confiança de 95%, 59,39% (R2 = 0.5939211) da sua variância explicada pelo modelo produtividade =  α + β1x + β2y + β3z, onde α = 1.096414089, β1 = 0.846791040, β2 = 0.002920297, β3 = 0.365078736, x = ‘Tem doutorado’ (Sim=1, Não=0), y = ‘Artigos em conferência’ e z = doutorandos por professor, com o erro b = [0,73; 1,47].
+O número de orientandos de doutorado por professor é um fator relevante na produtividade do programa.
+Aprendemos que a produção é significativamente influenciada pela quantidade de professores permanentes já a produtividade é significativamente influenciada pela quantidade de orientandos de doutorado.
+
+
